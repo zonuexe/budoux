@@ -3,6 +3,8 @@ data/* export-ignore
 example.* export-ignore
 java/* export-ignore
 javascript/* export-ignore
+php/tests/* export-ignore
+phpunit.xml.dist export-ignore
 pyproject.toml export-ignore
 scripts/* export-ignore
 setup.* export-ignore

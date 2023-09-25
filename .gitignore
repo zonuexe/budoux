@@ -28,5 +28,6 @@ weights.txt
 .vscode/
 
 # PHP related files
+.phpunit.cache/
 composer.lock
 vendor/
