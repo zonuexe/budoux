@@ -26,3 +26,7 @@ encoded_data.txt
 weights.txt
 
 .vscode/
+
+# PHP related files
+composer.lock
+vendor/

@@ -1,0 +1,9 @@
+budoux/*.py export-ignore
+data/* export-ignore
+example.* export-ignore
+java/* export-ignore
+javascript/* export-ignore
+pyproject.toml export-ignore
+scripts/* export-ignore
+setup.* export-ignore
+tests/* export-ignore
