@@ -61,7 +61,15 @@ public class ParserTest {
     String result = parser.translateHTMLString(html);
     assertEquals(
         "<span style=\"word-break: keep-all; overflow-wrap: anywhere;\"><a"
-            + " href=\"http://example.com\">xyz<wbr>a</a>bc</span>",
+            + " href=\"http://example.com\">xyz\u200ba</a>bc</span>",
         result);
+  }
+
+  @Test
+  public void testNewline() {
+    Parser parser = Parser.loadDefaultJapaneseParser();
+    List<String> result = parser.parse(" 1  \n  2 ");
+    List<String> expected = Arrays.asList(" 1  \n  2 ");
+    assertEquals(expected, result);
   }
 }

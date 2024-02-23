@@ -19,7 +19,8 @@ import {
   HTMLProcessingParser,
   HTMLProcessor,
   HTMLProcessorOptions,
-  NodeOrText,
+  NodeOrTextForTesting,
+  ParagraphForTesting,
 } from '../html_processor.js';
 import {win} from '../win.js';
 import {parseFromString, setInnerHtml} from '../dom.js';
@@ -30,6 +31,13 @@ class MockHTMLProcessorBase extends HTMLProcessor {
   constructor(options?: HTMLProcessorOptions) {
     super(parser, options);
   }
+}
+
+function getBlocks(html: string): IterableIterator<ParagraphForTesting> {
+  const document = win.document;
+  setInnerHtml(document.body, html);
+  const processor = new MockHTMLProcessorBase();
+  return processor.getBlocks(document.body);
 }
 
 describe('HTMLProcessor.applyToElement', () => {
@@ -117,46 +125,40 @@ describe('HTMLProcessor.applyToElement.separator.node', () => {
 });
 
 describe('HTMLProcessor.getBlocks', () => {
-  const getBlocks = (html: string) => {
-    const document = win.document;
-    setInnerHtml(document.body, html);
-    const processor = new MockHTMLProcessorBase();
-    const blocks = processor.getBlocks(document.body);
-    const texts = Array.from(
+  function getText(html: string): string[] {
+    const blocks = getBlocks(html);
+    return Array.from(
       (function* (blocks) {
         for (const block of blocks) yield block.text;
       })(blocks)
     );
-    return texts;
-  };
+  }
 
   it('should collect all text of a simple block', () => {
-    expect(getBlocks('<div>123</div>')).toEqual(['123']);
+    expect(getText('<div>123</div>')).toEqual(['123']);
   });
 
   it('should collect two blocks separately', () => {
-    expect(getBlocks('<div>123</div><div>456</div>')).toEqual(['123', '456']);
+    expect(getText('<div>123</div><div>456</div>')).toEqual(['123', '456']);
   });
 
   it('should break at <br> elements', () => {
-    expect(getBlocks('<div>123<br>456</div>')).toEqual(['123', '456']);
+    expect(getText('<div>123<br>456</div>')).toEqual(['123', '456']);
   });
 
   it('should break at <br> elements inside a span', () => {
-    expect(getBlocks('<div>1<span>23<br>45</span>6</div>')).toEqual([
+    expect(getText('<div>1<span>23<br>45</span>6</div>')).toEqual([
       '123',
       '456',
     ]);
   });
 
   it('should collect inline boxes as part of the block', () => {
-    expect(getBlocks('<div>123<span>456</span>789</div>')).toEqual([
-      '123456789',
-    ]);
+    expect(getText('<div>123<span>456</span>789</div>')).toEqual(['123456789']);
   });
 
   it('should collect nested blocks separately from the parent block', () => {
-    expect(getBlocks('<div>123<div>456</div>789</div>')).toEqual([
+    expect(getText('<div>123<div>456</div>789</div>')).toEqual([
       '456',
       '123789',
     ]);
@@ -164,37 +166,67 @@ describe('HTMLProcessor.getBlocks', () => {
 
   it('should collect inline-blocks separately from the parent block', () => {
     expect(
-      getBlocks('<div>123<div style="display: inline-block">456</div>789</div>')
+      getText('<div>123<div style="display: inline-block">456</div>789</div>')
     ).toEqual(['456', '123789']);
     expect(
-      getBlocks(
-        '<div>123<span style="display: inline-block">456</span>789</div>'
-      )
+      getText('<div>123<span style="display: inline-block">456</span>789</div>')
     ).toEqual(['456', '123789']);
   });
 
   it('should skip textarea elements', () => {
-    expect(getBlocks('<textarea>123</textarea>')).toEqual([]);
+    expect(getText('<textarea>123</textarea>')).toEqual([]);
   });
 
   it('should skip <rt> and <rp> elements for <ruby>', () => {
     expect(
-      getBlocks('before<ruby>b1<rp>(</rp><rt>r1</rt>b2<rt>r2</rt></ruby>after')
+      getText('before<ruby>b1<rp>(</rp><rt>r1</rt>b2<rt>r2</rt></ruby>after')
     ).toEqual(['beforeb1b2after']);
   });
 
   it('should use the built-in rules if the `display` property is empty', () => {
-    expect(getBlocks('<div>123<span>456</span></div>')).toEqual(['123456']);
-    expect(getBlocks('<div>123<div>456</div></div>')).toEqual(['456', '123']);
-    expect(getBlocks('<div><h1>123</h1><li>456</li></div>')).toEqual([
+    expect(getText('<div>123<span>456</span></div>')).toEqual(['123456']);
+    expect(getText('<div>123<div>456</div></div>')).toEqual(['456', '123']);
+    expect(getText('<div><h1>123</h1><li>456</li></div>')).toEqual([
       '123',
       '456',
     ]);
   });
 });
 
+describe('HTMLProcessor.forcedOpportunities', () => {
+  function forcedOpportunities(html: string) {
+    const blocks = getBlocks(html);
+    return Array.from(
+      (function* (blocks) {
+        for (const block of blocks) {
+          yield {
+            indices: block.getForcedOpportunities(),
+            after: block.nodes.map(block => block.hasBreakOpportunityAfter),
+          };
+        }
+      })(blocks)
+    );
+  }
+
+  it('<wbr> should set has_break_opportunity_after', () => {
+    expect(forcedOpportunities('123<wbr>456')).toEqual([
+      {indices: [3], after: [true, false]},
+    ]);
+  });
+  it('Nested <wbr> should set has_break_opportunity_after', () => {
+    expect(forcedOpportunities('123<span><wbr></span>456')).toEqual([
+      {indices: [3], after: [true, false]},
+    ]);
+  });
+  it('ZWSP should be in forcedOpportunities', () => {
+    expect(forcedOpportunities('123<span>\u200B456</span>')).toEqual([
+      {indices: [4], after: [false, false]},
+    ]);
+  });
+});
+
 describe('HTMLProcessor.splitNodes', () => {
-  class MockNode extends NodeOrText {
+  class MockNode extends NodeOrTextForTesting {
     constructor(text: string) {
       super(text);
     }
@@ -284,7 +316,7 @@ describe('HTMLProcessor.splitNodes', () => {
   });
 });
 
-describe('HTMLProcessingParser.applyElement', () => {
+describe('HTMLProcessingParser.applyToElement', () => {
   const checkEqual = (
     model: {[key: string]: {[key: string]: number}},
     inputHTML: string,
@@ -293,27 +325,42 @@ describe('HTMLProcessingParser.applyElement', () => {
     const inputDOM = parseFromString(inputHTML);
     const inputDocument = inputDOM.querySelector('p') as HTMLElement;
     const parser = new HTMLProcessingParser(model);
-    parser.applyElement(inputDocument);
+    parser.applyToElement(inputDocument);
     const expectedDocument = parseFromString(expectedHTML);
     const expectedElement = expectedDocument.querySelector('p') as HTMLElement;
     expect(inputDocument.isEqualNode(expectedElement)).toBeTrue();
   };
+  const style = 'word-break: keep-all; overflow-wrap: anywhere;';
 
-  it('should insert WBR tags where the sentence should break.', () => {
+  it('should insert ZWSPs where the sentence should break.', () => {
     const inputHTML = '<p>xyzabcabc</p>';
-    const expectedHTML = `
-    <p style="word-break: keep-all; overflow-wrap: anywhere;"
-    >xyz<wbr>abc<wbr>abc</p>`;
+    const expectedHTML = `<p style="${style}">xyz\u200Babc\u200Babc</p>`;
     const model = {
       UW4: {a: 1001}, // means "should separate right before 'a'".
     };
     checkEqual(model, inputHTML, expectedHTML);
   });
 
-  it('should insert WBR tags even it overlaps with other HTML tags.', () => {
+  it('should insert ZWSPs even it overlaps with other HTML tags.', () => {
     const inputHTML = '<p>xy<a href="#">zabca</a>bc</p>';
-    const expectedHTML = `<p style="word-break: keep-all; overflow-wrap: anywhere;"
-    >xy<a href="#">z<wbr>abc<wbr>a</a>bc</p>`;
+    const expectedHTML = `<p style="${style}">xy<a href="#">z\u200Babc\u200Ba</a>bc</p>`;
+    const model = {
+      UW4: {a: 1001}, // means "should separate right before 'a'".
+    };
+    checkEqual(model, inputHTML, expectedHTML);
+  });
+
+  it('should not insert ZWSPs to where input has WBR tags already.', () => {
+    const inputHTML = '<p>xyz<wbr>abcabc</p>';
+    const expectedHTML = `<p style="${style}">xyz<wbr>abc\u200Babc</p>`;
+    const model = {
+      UW4: {a: 1001}, // means "should separate right before 'a'".
+    };
+    checkEqual(model, inputHTML, expectedHTML);
+  });
+  it('should not insert ZWSPs to where input has ZWSPs.', () => {
+    const inputHTML = '<p>xyz\u200Babcabc</p>';
+    const expectedHTML = `<p style="${style}">xyz\u200babc\u200Babc</p>`;
     const model = {
       UW4: {a: 1001}, // means "should separate right before 'a'".
     };
@@ -340,7 +387,7 @@ describe('HTMLProcessingParser.translateHTMLString', () => {
   it('should output a html string with a SPAN parent with proper style attributes.', () => {
     const inputHTML = 'xyzabcd';
     const expectedHTML = `
-    <span style="word-break: keep-all; overflow-wrap: anywhere;">xyz<wbr>abcd</span>`;
+    <span style="word-break: keep-all; overflow-wrap: anywhere;">xyz\u200Babcd</span>`;
     checkEqual(defaultModel, inputHTML, expectedHTML);
   });
 
@@ -349,7 +396,7 @@ describe('HTMLProcessingParser.translateHTMLString', () => {
     const expectedHTML = `
     <p class="foo"
        style="color: red; word-break: keep-all; overflow-wrap: anywhere;"
-    >xyz<wbr>abcd</p>`;
+    >xyz\u200Babcd</p>`;
     checkEqual(defaultModel, inputHTML, expectedHTML);
   });
 
@@ -363,7 +410,7 @@ describe('HTMLProcessingParser.translateHTMLString', () => {
     const inputHTML = 'xyz<script>alert(1);</script>xyzabc';
     const expectedHTML = `<span
     style="word-break: keep-all; overflow-wrap: anywhere;"
-    >xyz<script>alert(1);</script>xyz<wbr>abc</span>`;
+    >xyz<script>alert(1);</script>xyz\u200Babc</span>`;
     checkEqual(defaultModel, inputHTML, expectedHTML);
   });
 
@@ -371,7 +418,7 @@ describe('HTMLProcessingParser.translateHTMLString', () => {
     const inputHTML = '<script>alert(1);</script>xyzabc';
     const expectedHTML = `<span
     style="word-break: keep-all; overflow-wrap: anywhere;"
-    >xyz<wbr>abc</span>`;
+    >xyz\u200Babc</span>`;
     checkEqual(defaultModel, inputHTML, expectedHTML);
   });
 
@@ -379,7 +426,7 @@ describe('HTMLProcessingParser.translateHTMLString', () => {
     const inputHTML = 'xyz<code>abc</code>abc';
     const expectedHTML = `<span
     style="word-break: keep-all; overflow-wrap: anywhere;"
-    >xyz<code>abc</code><wbr>abc</span>`;
+    >xyz<code>abc</code>\u200Babc</span>`;
     checkEqual(defaultModel, inputHTML, expectedHTML);
   });
 
@@ -387,7 +434,7 @@ describe('HTMLProcessingParser.translateHTMLString', () => {
     const inputHTML = 'xyza<a href="#" hidden>bc</a>abc';
     const expectedHTML = `<span
     style="word-break: keep-all; overflow-wrap: anywhere;"
-    >xyz<wbr>a<a href="#" hidden>bc</a><wbr>abc</span>`;
+    >xyz\u200Ba<a href="#" hidden>bc</a>\u200Babc</span>`;
     checkEqual(defaultModel, inputHTML, expectedHTML);
   });
 
@@ -395,7 +442,7 @@ describe('HTMLProcessingParser.translateHTMLString', () => {
     const inputHTML = 'xyza🇯🇵🇵🇹abc';
     const expectedHTML = `<span
     style="word-break: keep-all; overflow-wrap: anywhere;"
-    >xyz<wbr>a🇯🇵🇵🇹<wbr>abc</span>`;
+    >xyz\u200Ba🇯🇵🇵🇹\u200Babc</span>`;
     checkEqual(defaultModel, inputHTML, expectedHTML);
   });
 });

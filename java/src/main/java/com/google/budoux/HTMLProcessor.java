@@ -24,12 +24,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.Stack;
 import java.util.stream.Collectors;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -56,18 +56,59 @@ final class HTMLProcessor {
     }
   }
 
+  /**
+   * A `NodeVisitor` subclass that concatenates all `TextNode`s to a string.
+   *
+   * <p>It also converts `&lt;br>` to `\n`.
+   */
+  private static class TextizeNodeVisitor implements NodeVisitor {
+    private StringBuilder output = new StringBuilder();
+
+    public String getString() {
+      return output.toString();
+    }
+
+    @Override
+    public void head(Node node, int depth) {
+      if (node instanceof Element) {
+        final String nodeName = node.nodeName();
+        if (nodeName.equals("br")) {
+          output.append('\n');
+        }
+      } else if (node instanceof TextNode) {
+        output.append(((TextNode) node).getWholeText());
+      }
+    }
+
+    @Override
+    public void tail(Node node, int depth) {}
+  }
+
   private static class PhraseResolvingNodeVisitor implements NodeVisitor {
     private static final char SEP = '\uFFFF';
     private final String phrasesJoined;
+    private final String separator;
     private final StringBuilder output = new StringBuilder();
     private Integer scanIndex = 0;
     private boolean toSkip = false;
-    private Stack<Boolean> elementStack = new Stack<Boolean>();
+    private final ArrayDeque<Boolean> elementStack = new ArrayDeque<>();
 
-    PhraseResolvingNodeVisitor(List<String> phrases) {
+    /**
+     * Constructs a PhraseResolvingNodeVisitor.
+     *
+     * @param phrases a list of phrase strings.
+     * @param separator the separator string.
+     */
+    PhraseResolvingNodeVisitor(List<String> phrases, String separator) {
+      this.separator = separator;
       this.phrasesJoined = String.join(Character.toString(SEP), phrases);
     }
 
+    /**
+     * Returns the resolved output string.
+     *
+     * @return the output string.
+     */
     public StringBuilder getOutput() {
       return output;
     }
@@ -84,9 +125,13 @@ final class HTMLProcessor {
                 .map(attribute -> " " + attribute)
                 .collect(Collectors.joining(""));
         final String nodeName = node.nodeName();
-        if (skipNodes.contains(nodeName.toUpperCase(Locale.ENGLISH))) {
+        if (nodeName.equals("br")) {
+          // `<br>` is converted to `\n`, see `TextizeNodeVisitor.head`.
+          // Assume phrasesJoined.charAt(scanIndex) == '\n'.
+          scanIndex++;
+        } else if (skipNodes.contains(nodeName.toUpperCase(Locale.ENGLISH))) {
           if (!toSkip && phrasesJoined.charAt(scanIndex) == SEP) {
-            output.append("<wbr>");
+            output.append(separator);
             scanIndex++;
           }
           toSkip = true;
@@ -97,8 +142,9 @@ final class HTMLProcessor {
         for (int i = 0; i < data.length(); i++) {
           char c = data.charAt(i);
           if (c != phrasesJoined.charAt(scanIndex)) {
+            // Assume phrasesJoined.charAt(scanIndex) == SEP.
             if (!toSkip) {
-              output.append("<wbr>");
+              output.append(separator);
             }
             scanIndex++;
           }
@@ -113,8 +159,12 @@ final class HTMLProcessor {
       if (node.nodeName().equals("body") || node instanceof TextNode) {
         return;
       }
-      assert node instanceof Element;
+      // assume node instanceof Element;
       toSkip = elementStack.pop();
+      Element element = (Element) node;
+      if (element.tag().isSelfClosing()) {
+        return;
+      }
       output.append(String.format("</%s>", node.nodeName()));
     }
   }
@@ -127,8 +177,20 @@ final class HTMLProcessor {
    * @return the HTML string of phrases wrapped in non-breaking markup.
    */
   public static String resolve(List<String> phrases, String html) {
+    return resolve(phrases, html, "\u200b");
+  }
+
+  /**
+   * Wraps phrases in the HTML string with non-breaking markup.
+   *
+   * @param phrases the phrases included in the HTML string.
+   * @param html the HTML string to resolve.
+   * @param separator the separator string.
+   * @return the HTML string of phrases wrapped in non-breaking markup.
+   */
+  public static String resolve(List<String> phrases, String html, String separator) {
     Document doc = Jsoup.parseBodyFragment(html);
-    PhraseResolvingNodeVisitor nodeVisitor = new PhraseResolvingNodeVisitor(phrases);
+    PhraseResolvingNodeVisitor nodeVisitor = new PhraseResolvingNodeVisitor(phrases, separator);
     doc.body().traverse(nodeVisitor);
     return String.format("<span style=\"%s\">%s</span>", STYLE, nodeVisitor.getOutput());
   }
@@ -140,6 +202,9 @@ final class HTMLProcessor {
    * @return the text content.
    */
   public static String getText(String html) {
-    return Jsoup.parseBodyFragment(html).text();
+    Document doc = Jsoup.parseBodyFragment(html);
+    TextizeNodeVisitor nodeVisitor = new TextizeNodeVisitor();
+    doc.body().traverse(nodeVisitor);
+    return nodeVisitor.getString();
   }
 }

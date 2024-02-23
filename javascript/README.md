@@ -50,14 +50,28 @@ console.log(parser.parse('是今天的天氣。'));
 // ['是', '今天', '的', '天氣。']
 ```
 
+**Thai:**
+
+```javascript
+import { loadDefaultThaiParser } from 'budoux';
+const parser = loadDefaultThaiParser();
+console.log(parser.parse('วันนี้อากาศดี'));
+// ['วัน', 'นี้', 'อากาศ', 'ดี']
+```
+
 ### Translating an HTML string
 
-You can also translate an HTML string to wrap phrases with non-breaking markup.
+You can also translate an HTML string to wrap phrases with non-breaking markup,
+specifically, zero-width spaces (U+200B).
 
 ```javascript
 console.log(parser.translateHTMLString('今日は<b>とても天気</b>です。'));
-// <span style="word-break: keep-all; overflow-wrap: anywhere;">今日は<b><wbr>とても<wbr>天気</b>です。</span>
+// <span style="word-break: keep-all; overflow-wrap: anywhere;">今日は<b>\u200bとても\u200b天気</b>です。</span>
 ```
+
+Please note that separators are denoted as `\u200b` in the example above for
+illustrative purposes, but the actual output is an invisible string as it's a
+zero-width space.
 
 ### Applying to an HTML element
 
@@ -67,13 +81,14 @@ You can also feed an HTML element to the parser to apply the process.
 const ele = document.querySelector('p.budou-this');
 console.log(ele.outerHTML);
 // <p class="budou-this">今日は<b>とても天気</b>です。</p>
-parser.applyElement(ele);
+parser.applyToElement(ele);
 console.log(ele.outerHTML);
-// <p class="budou-this" style="word-break: keep-all; overflow-wrap: anywhere;">今日は<b><wbr>とても<wbr>天気</b>です。</p>
+// <p class="budou-this" style="word-break: keep-all; overflow-wrap: anywhere;">今日は<b>\u200bとても\u200b天気</b>です。</p>
 ```
 
-Internally, the `applyElement` calls the [`HTMLProcessor`] class
-with a `<wbr>` element as the separator.
+Internally, the `applyToElement` calls the [`HTMLProcessor`]'s `applyToElement`
+function with the zero-width space as the separator.
+
 You can use the [`HTMLProcessor`] class directly if desired.
 For example:
 
@@ -107,11 +122,13 @@ All you have to do is wrap sentences with:
 - `<budoux-ja>` for Japanese
 - `<budoux-zh-hans>` for Simplified Chinese
 - `<budoux-zh-hant>` for Traditional Chinese
+- `<budoux-th>` for Thai
 
 ```html
 <budoux-ja>今日は天気です。</budoux-ja>
 <budoux-zh-hans>今天是晴天。</budoux-zh-hans>
 <budoux-zh-hant>今天是晴天。</budoux-zh-hant>
+<budoux-th>วันนี้อากาศดี</budoux-th>
 ```
 
 In order to enable the custom element, you can simply add this line to load the bundle.
@@ -125,6 +142,9 @@ In order to enable the custom element, you can simply add this line to load the 
 
 <!-- For Traditional Chinese -->
 <script src="https://unpkg.com/budoux/bundle/budoux-zh-hant.min.js"></script>
+
+<!-- For Thai -->
+<script src="https://unpkg.com/budoux/bundle/budoux-th.min.js"></script>
 ```
 
 Otherwise, if you wish to bundle the component with the rest of your source code,
@@ -139,6 +159,9 @@ import 'budoux/module/webcomponents/budoux-zh-hans';
 
 // For Traditional Chinese
 import 'budoux/module/webcomponents/budoux-zh-hant';
+
+// For Thai
+import 'budoux/module/webcomponents/budoux-th';
 ```
 
 ### CLI
@@ -162,8 +185,12 @@ $ echo $'本日は晴天です。\n明日は曇りでしょう。' | budoux
 
 ```shellsession
 $ budoux 本日は晴天です。 -H
-<span style="word-break: keep-all; overflow-wrap: anywhere;">本日は<wbr>晴天です。</span>
+<span style="word-break: keep-all; overflow-wrap: anywhere;">本日は\u200b晴天です。</span>
 ```
+
+Please note that separators are denoted as `\u200b` in the example above for
+illustrative purposes, but the actual output is an invisible string as it's a
+zero-width space.
 
 If you want to see help, run `budoux -h`.
 

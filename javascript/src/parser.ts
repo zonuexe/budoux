@@ -19,7 +19,8 @@
  */
 export class Parser {
   /** BudouX model data */
-  model;
+  private readonly model: Map<string, Map<string, number>>;
+  private readonly baseScore: number;
 
   /**
    * Constructs a BudouX parser.
@@ -29,13 +30,19 @@ export class Parser {
     this.model = new Map(
       Object.entries(model).map(([k, v]) => [k, new Map(Object.entries(v))])
     );
+    this.baseScore =
+      -0.5 *
+      [...this.model.values()]
+        .map(group => [...group.values()])
+        .flat()
+        .reduce((prev, curr) => prev + curr, 0);
   }
 
   /**
    * Parses the input sentence and returns a list of semantic chunks.
    *
    * @param sentence An input sentence.
-   * @returns The retrieved chunks.
+   * @return The retrieved chunks.
    */
   parse(sentence: string): string[] {
     if (sentence === '') return [];
@@ -54,19 +61,14 @@ export class Parser {
    * Parses the input sentence and returns a list of boundaries.
    *
    * @param sentence An input sentence.
-   * @returns The list of boundaries.
+   * @return The list of boundaries.
    */
   parseBoundaries(sentence: string): number[] {
     const result = [];
-    const baseScore =
-      -0.5 *
-      [...this.model.values()]
-        .map(group => [...group.values()])
-        .flat()
-        .reduce((prev, curr) => prev + curr, 0);
 
     for (let i = 1; i < sentence.length; i++) {
-      let score = baseScore;
+      let score = this.baseScore;
+      // NOTE: Score values in models may be negative.
       /* eslint-disable */
       score += this.model.get('UW1')?.get(sentence.substring(i - 3, i - 2)) || 0;
       score += this.model.get('UW2')?.get(sentence.substring(i - 2, i - 1)) || 0;

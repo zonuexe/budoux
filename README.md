@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD014 -->
 # BudouX
 
-[![PyPI](https://img.shields.io/pypi/v/budoux?color=blue)](https://pypi.org/project/budoux/) [![npm](https://img.shields.io/npm/v/budoux?color=yellow)](https://www.npmjs.com/package/budoux)
+[![PyPI](https://img.shields.io/pypi/v/budoux?color=blue)](https://pypi.org/project/budoux/) [![npm](https://img.shields.io/npm/v/budoux?color=yellow)](https://www.npmjs.com/package/budoux) [![Maven Central](https://img.shields.io/maven-central/v/com.google.budoux/budoux)](https://mvnrepository.com/artifact/com.google.budoux/budoux)
 
 Standalone. Small. Language-neutral.
 
@@ -26,6 +26,7 @@ Last but not least, BudouX supports HTML inputs.
 - Japanese
 - Simplified Chinese
 - Traditional Chinese
+- Thai
 
 ## Supported Programming languages
 
@@ -75,12 +76,25 @@ print(parser.parse('今天是晴天。'))
 # ['今天', '是', '晴天。']
 ```
 
-You can also translate an HTML string by wrapping phrases with non-breaking markup.
+**Thai:**
+```python
+import budoux
+parser = budoux.load_default_thai_parser()
+print(parser.parse('วันนี้อากาศดี'))
+# ['วัน', 'นี้', 'อากาศ', 'ดี']
+```
+
+You can also translate an HTML string to wrap phrases with non-breaking markup.
+The default parser uses zero-width space (U+200B) to separate phrases.
 
 ```python
 print(parser.translate_html_string('今日は<b>とても天気</b>です。'))
-# <span style="word-break: keep-all; overflow-wrap: anywhere;">今日は<b ><wbr>とても<wbr>天気</b>です。</span>
+# <span style="word-break: keep-all; overflow-wrap: anywhere;">今日は<b>\u200bとても\u200b天気</b>です。</span>
 ```
+
+Please note that separators are denoted as `\u200b` in the example above for
+illustrative purposes, but the actual output is an invisible string as it's a
+zero-width space.
 
 If you have a custom model, you can use it as follows.
 
@@ -117,6 +131,12 @@ $ budoux -l zh-hant 今天天氣晴朗。
 今天
 天氣
 晴朗。
+
+$ budoux -l th วันนี้อากาศดี
+วัน
+นี้
+อากาศ
+ดี
 ```
 
 ```shellsession
@@ -130,8 +150,12 @@ $ echo $'本日は晴天です。\n明日は曇りでしょう。' | budoux
 
 ```shellsession
 $ budoux 本日は晴天です。 -H
-<span style="word-break: keep-all; overflow-wrap: anywhere;">本日は<wbr>晴天です。</span>
+<span style="word-break: keep-all; overflow-wrap: anywhere;">本日は\u200b晴天です。</span>
 ```
+
+Please note that separators are denoted as `\u200b` in the example above for
+illustrative purposes, but the actual output is an invisible string as it's a
+zero-width space.
 
 If you want to see help, run `budoux -h`.
 
@@ -157,6 +181,7 @@ supported languages of `-l`, `--lang`:
 - ja
 - zh-hans
 - zh-hant
+- th
 ```
 
 ## Caveat

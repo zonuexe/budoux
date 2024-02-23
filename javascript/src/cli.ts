@@ -24,7 +24,7 @@ import {
   loadDefaultJapaneseParser,
 } from './index.js';
 
-const CLI_VERSION = '0.5.2';
+const CLI_VERSION = '0.6.2';
 const defaultParsers = loadDefaultParsers();
 
 /**
@@ -129,7 +129,7 @@ const outputParsedTexts = (
 
 /**
  * Loads a parser equipped with custom model.
- * @returns A parser with the loaded model.
+ * @return A parser with the loaded model.
  */
 const loadCustomParser = (modelPath: string) => {
   const file = readFileSync(path.resolve(modelPath)).toString();

@@ -85,6 +85,15 @@ public class Parser {
   }
 
   /**
+   * Loads the default Thai parser.
+   *
+   * @return a BudouX parser with the default Thai model.
+   */
+  public static Parser loadDefaultThaiParser() {
+    return loadByFileName("/models/th.json");
+  }
+
+  /**
    * Loads a parser by specifying the model file path.
    *
    * @param modelFileName the model file path.
@@ -183,6 +192,6 @@ public class Parser {
   public String translateHTMLString(String html) {
     String sentence = HTMLProcessor.getText(html);
     List<String> phrases = parse(sentence);
-    return HTMLProcessor.resolve(phrases, html);
+    return HTMLProcessor.resolve(phrases, html, "\u200b");
   }
 }

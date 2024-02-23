@@ -20,7 +20,8 @@ import {win} from './win.js';
 
 const assert = console.assert;
 
-const ZWSP = '\u200B'; // U+200B ZERO WIDTH SPACE
+const ZWSP_CODEPOINT = 0x200b; // U+200B ZERO WIDTH SPACE
+const ZWSP = String.fromCharCode(ZWSP_CODEPOINT);
 
 // We could use `Node.TEXT_NODE` and `Node.ELEMENT_NODE` in a browser context,
 // but we define the same here for Node.js environments.
@@ -35,6 +36,7 @@ const DomAction = {
   Skip: 2, // Skip the content. The content before and after are connected.
   Break: 3, // A forced break. The content before and after become paragraphs.
   NoBreak: 4, // The content provides context, but it's not breakable.
+  BreakOpportunity: 5, // Force a break opportunity.
 } as const;
 type DomAction = (typeof DomAction)[keyof typeof DomAction];
 
@@ -76,6 +78,7 @@ const domActions: {[name: string]: DomAction} = {
   // https://html.spec.whatwg.org/multipage/rendering.html#phrasing-content-3
   BR: DomAction.Break,
   RT: DomAction.Skip,
+  WBR: DomAction.BreakOpportunity,
 
   // Form controls
   // https://html.spec.whatwg.org/multipage/rendering.html#form-controls
@@ -161,9 +164,30 @@ const NODETYPE = {
 };
 
 /**
+ * Determine the action for a CSS `display` property value.
+ * @param display The value of the CSS `display` property.
+ * @return The {@link domActions} for the value.
+ */
+function actionForDisplay(display: string): DomAction {
+  // Handle common cases first.
+  if (display === 'inline') return DomAction.Inline;
+  if (display === 'block') return DomAction.Block;
+
+  // Handle Ruby base as in-flow.
+  if (display.startsWith('ruby')) {
+    if (display === 'ruby-text') return DomAction.Skip;
+    return DomAction.Inline;
+  }
+
+  // Handle other values including multi-value syntax as blocks.
+  // https://drafts.csswg.org/css-display/#the-display-properties
+  return DomAction.Block;
+}
+
+/**
  * Determine the action for an element.
  * @param element An element to determine the action for.
- * @returns The {@link domActions} for the element.
+ * @return The {@link domActions} for the element.
  */
 function actionForElement(element: Element): DomAction {
   const nodeName = element.nodeName;
@@ -179,8 +203,7 @@ function actionForElement(element: Element): DomAction {
     }
 
     const display = style.display;
-    if (display)
-      return display === 'inline' ? DomAction.Inline : DomAction.Block;
+    if (display) return actionForDisplay(display);
     // `display` is an empty string if the element is not connected.
   }
 
@@ -198,9 +221,10 @@ function actionForElement(element: Element): DomAction {
  *
  * A {@link string} provides the context for the parser, but it can't be split.
  */
-export class NodeOrText {
+class NodeOrText {
   nodeOrText: Text | string;
   chunks: string[] = [];
+  hasBreakOpportunityAfter = false;
 
   constructor(nodeOrText: Text | string) {
     this.nodeOrText = nodeOrText;
@@ -254,6 +278,7 @@ export class NodeOrText {
     node.replaceWith(...nodes);
   }
 }
+export class NodeOrTextForTesting extends NodeOrText {}
 
 /**
  * Represents a "paragraph", broken by block boundaries or forced breaks.
@@ -277,7 +302,54 @@ class Paragraph {
   get text(): string {
     return this.nodes.map(node => node.text).join('');
   }
+
+  get lastNode(): NodeOrText | undefined {
+    return this.nodes.length ? this.nodes[this.nodes.length - 1] : undefined;
+  }
+  setHasBreakOpportunityAfter() {
+    const lastNode = this.lastNode;
+    if (lastNode) lastNode.hasBreakOpportunityAfter = true;
+  }
+
+  /**
+   * @return Indices of forced break opportunities in the source.
+   * They can be created by `<wbr>` tag or `&ZeroWidthSpace;`.
+   */
+  getForcedOpportunities(): number[] {
+    const opportunities: number[] = [];
+    let len = 0;
+    for (const node of this.nodes) {
+      if (node.canSplit) {
+        const text = node.text;
+        if (text) {
+          for (let i = 0; i < text.length; ++i) {
+            if (text.charCodeAt(i) === ZWSP_CODEPOINT) {
+              opportunities.push(len + i + 1);
+            }
+          }
+        }
+      }
+      len += node.length;
+      if (node.hasBreakOpportunityAfter) {
+        opportunities.push(len);
+      }
+    }
+    return opportunities;
+  }
+
+  /**
+   * @return Filtered {@param boundaries} by excluding
+   * {@link getForcedOpportunities} if it's not empty.
+   * Otherwise {@param boundaries}.
+   */
+  excludeForcedOpportunities(boundaries: number[]): number[] {
+    const forcedOpportunities = this.getForcedOpportunities();
+    if (!forcedOpportunities.length) return boundaries;
+    const set = new Set<number>(forcedOpportunities);
+    return boundaries.filter(i => !set.has(i));
+  }
 }
+export class ParagraphForTesting extends Paragraph {}
 
 /**
  * Options for {@link HTMLProcessor}.
@@ -326,7 +398,7 @@ export class HTMLProcessor {
    * Checks if the given element has a text node in its children.
    *
    * @param ele An element to be checked.
-   * @returns Whether the element has a child text node.
+   * @return Whether the element has a child text node.
    */
   static hasChildTextNode(ele: HTMLElement) {
     for (const child of ele.childNodes) {
@@ -353,7 +425,7 @@ export class HTMLProcessor {
    * Find paragraphs from a given HTML element.
    * @param element The root element to find paragraphs.
    * @param parent The parent {@link Paragraph} if any.
-   * @returns A list of {@link Paragraph}s.
+   * @return A list of {@link Paragraph}s.
    */
   *getBlocks(
     element: HTMLElement,
@@ -366,13 +438,17 @@ export class HTMLProcessor {
 
     const action = actionForElement(element);
     if (action === DomAction.Skip) return;
-
     if (action === DomAction.Break) {
       if (parent && !parent.isEmpty()) {
+        parent.setHasBreakOpportunityAfter();
         yield parent;
         parent.nodes = [];
       }
       assert(!element.firstChild);
+      return;
+    }
+    if (action === DomAction.BreakOpportunity) {
+      if (parent) parent.setHasBreakOpportunityAfter();
       return;
     }
 
@@ -432,10 +508,12 @@ export class HTMLProcessor {
     assert(boundaries.every((x, i) => i === 0 || x > boundaries[i - 1]));
     assert(boundaries[boundaries.length - 1] < text.length);
 
-    // Add a sentinel to help iterating.
-    boundaries.push(text.length + 1);
+    const adjustedBoundaries = paragraph.excludeForcedOpportunities(boundaries);
 
-    this.splitNodes(paragraph.nodes, boundaries);
+    // Add a sentinel to help iterating.
+    adjustedBoundaries.push(text.length + 1);
+
+    this.splitNodes(paragraph.nodes, adjustedBoundaries);
     this.applyBlockStyle(paragraph.element);
   }
 
@@ -528,48 +606,60 @@ export class HTMLProcessor {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Constructor<T = {}> = new (...args: any[]) => T;
-
-/**
- * Mixin to add HTML processing support to {@link Parser}.
- * @param Base A base {@link Parser} class
- * @returns An extended {@link Parser} class with {@link HTMLProcessor}.
- */
-function HTMLProcessing<TBase extends Constructor<Parser>>(Base: TBase) {
-  return class _HTMLProcessable extends Base {
-    /**
-     * Applies markups for semantic line breaks to the given HTML element.
-     * @param parentElement The input element.
-     */
-    applyElement(parentElement: HTMLElement) {
-      const htmlProcessor = new HTMLProcessor(this, {
-        separator: parentElement.ownerDocument.createElement('wbr'),
-      });
-      htmlProcessor.applyToElement(parentElement);
-    }
-
-    /**
-     * Translates the given HTML string to another HTML string with markups
-     * for semantic line breaks.
-     * @param html An input html string.
-     * @returns The translated HTML string.
-     */
-    translateHTMLString(html: string) {
-      if (html === '') return html;
-      const doc = parseFromString(html);
-      if (HTMLProcessor.hasChildTextNode(doc.body)) {
-        const wrapper = doc.createElement('span');
-        wrapper.append(...doc.body.childNodes);
-        doc.body.append(wrapper);
-      }
-      this.applyElement(doc.body.childNodes[0] as HTMLElement);
-      return doc.body.innerHTML;
-    }
-  };
-}
-
 /**
  * BudouX {@link Parser} with HTML processing support.
  */
-export class HTMLProcessingParser extends HTMLProcessing(Parser) {}
+export class HTMLProcessingParser extends Parser {
+  htmlProcessor: HTMLProcessor;
+
+  constructor(
+    model: {[key: string]: {[key: string]: number}},
+    htmlProcessorOptions: HTMLProcessorOptions = {
+      separator: ZWSP,
+    }
+  ) {
+    super(model);
+    this.htmlProcessor = new HTMLProcessor(this, htmlProcessorOptions);
+  }
+
+  /**
+   * @deprecated Use `applyToElement` instead. `applyElement` will be removed
+   * in v0.7.0 to align the function name with `HTMLProcessor`'s API.
+   *
+   * Applies markups for semantic line breaks to the given HTML element.
+   * @param parentElement The input element.
+   */
+  applyElement(parentElement: HTMLElement) {
+    console.warn(
+      '`applyElement` is deprecated. Please use `applyToElement` instead. ' +
+        '`applyElement` will be removed in v0.7.0.'
+    );
+    this.applyToElement(parentElement);
+  }
+
+  /**
+   * Applies markups for semantic line breaks to the given HTML element.
+   * @param parentElement The input element.
+   */
+  applyToElement(parentElement: HTMLElement) {
+    this.htmlProcessor.applyToElement(parentElement);
+  }
+
+  /**
+   * Translates the given HTML string to another HTML string with markups
+   * for semantic line breaks.
+   * @param html An input html string.
+   * @return The translated HTML string.
+   */
+  translateHTMLString(html: string) {
+    if (html === '') return html;
+    const doc = parseFromString(html);
+    if (HTMLProcessor.hasChildTextNode(doc.body)) {
+      const wrapper = doc.createElement('span');
+      wrapper.append(...doc.body.childNodes);
+      doc.body.append(wrapper);
+    }
+    this.applyToElement(doc.body.childNodes[0] as HTMLElement);
+    return doc.body.innerHTML;
+  }
+}
