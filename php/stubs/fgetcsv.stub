@@ -1,0 +1,6 @@
+<?php
+
+/** @return __benevolent<list<string>|false> */
+function fgetcsv(mixed $value)
+{
+}
