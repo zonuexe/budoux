@@ -1,7 +1,13 @@
 <!-- markdownlint-disable MD014 -->
-# BudouX
+# BudouX for PHP
+
+[![Package version](http://img.shields.io/packagist/v/zonuexe/budoux.svg?style=flat)](https://packagist.org/packages/zonuexe/budoux)
+
+<!--
 
 [![PyPI](https://img.shields.io/pypi/v/budoux?color=blue)](https://pypi.org/project/budoux/) [![npm](https://img.shields.io/npm/v/budoux?color=yellow)](https://www.npmjs.com/package/budoux) [![Maven Central](https://img.shields.io/maven-central/v/com.google.budoux/budoux)](https://mvnrepository.com/artifact/com.google.budoux/budoux)
+
+-->
 
 Standalone. Small. Language-neutral.
 
@@ -29,6 +35,12 @@ Last but not least, BudouX supports HTML inputs.
 - Thai
 
 ## Supported Programming languages
+
+- PHP (Packagist: [zonuexe/budoux])
+
+[zonuexe/budoux]: https://packagist.org/packages/zonuexe/budoux
+
+The following languages are provided by the [original BudouX](https://github.com/google/budoux).
 
 - Python
 - [JavaScript](https://github.com/google/budoux/tree/main/javascript/)
