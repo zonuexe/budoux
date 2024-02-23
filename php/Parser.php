@@ -24,10 +24,10 @@ use function array_is_list;
 use function array_key_last;
 use function array_map;
 use function array_sum;
-use function array_values;
 use function file_get_contents;
 use function json_decode;
 use function mb_strlen;
+use function mb_substr;
 use function strlen;
 
 /**
@@ -133,7 +133,7 @@ class Parser
             mb_substr($sentence, 0, 1, 'UTF-8'),
         ];
 
-        $totalScore = array_sum(array_map(array_sum(...), array_values($this->model)));
+        $totalScore = array_sum(array_map(array_sum(...), $this->model));
         $length = mb_strlen($sentence, 'UTF-8');
 
         for ($i = 1; $i < $length; $i++) {
