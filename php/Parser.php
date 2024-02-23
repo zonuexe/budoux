@@ -79,6 +79,14 @@ class Parser
     }
 
     /**
+     * Loads the default Traditional Chinese parser.
+     */
+    public static function loadDefaultThaiParser(): Parser
+    {
+        return self::loadByFileName(__DIR__ . '/../budoux/models/th.json');
+    }
+
+    /**
      * Loads a parser by specifying the model file path.
      *
      * @param string $modelFileName the model file path.
