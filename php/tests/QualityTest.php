@@ -24,7 +24,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use function compact;
+use function explode;
+use function fgets;
 use function fgetcsv;
+use function fopen;
 use function strtr;
 
 #[CoversClass(Parser::class)]
@@ -40,10 +43,7 @@ class QualityTest extends TestCase
     {
         $parser = Parser::loadDefaultJapaneseParser();
 
-        $this->assertEquals(
-            $expected,
-            actual: $parser->parse($input),
-        );
+        $this->assertSame($expected, $parser->parse($input));
     }
 
     /**
@@ -56,7 +56,7 @@ class QualityTest extends TestCase
         $header = fgets($fp);
         assert($header === "# label	sentence\n");
 
-        while ([$label, $data] = fgetcsv($fp, 1024, "\t")) {
+        while ([$label, $data] = fgetcsv($fp, 1024, "\t", '"', '\\')) {
             $input = strtr($data, [self::SEP => '']);
             $expected = explode(self::SEP, $data);
             yield compact('label', 'input', 'expected');
