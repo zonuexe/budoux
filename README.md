@@ -27,12 +27,16 @@ Last but not least, BudouX supports HTML inputs.
 
 <https://google.github.io/budoux>
 
-## Natural languages supported by default
+## Natural languages supported by pretrained models
 
 - Japanese
 - Simplified Chinese
 - Traditional Chinese
 - Thai
+
+### Korean support?
+Korean uses spaces between words, so you can generally prevent words from being split across lines by applying the CSS property `word-break: keep-all` to the paragraph, which should be much more performant than installing BudouX.
+That said, we're happy to explore dedicated Korean language support if the above solution proves insufficient.
 
 ## Supported Programming languages
 
@@ -46,13 +50,6 @@ The following languages are provided by the [original BudouX](https://github.com
 - [JavaScript](https://github.com/google/budoux/tree/main/javascript/)
 - [Java](https://github.com/google/budoux/tree/main/java/)
 
-## Python module
-
-### Install
-
-```shellsession
-$ pip install budoux
-```
 
 ### Usage
 
@@ -63,46 +60,53 @@ The easiest way is to get a parser is loading the default parser for each langua
 
 **Japanese:**
 
-```python
-import budoux
-parser = budoux.load_default_japanese_parser()
-print(parser.parse('今日は天気です。'))
+```php
+use Budoux;
+
+$parser = Budoux\Parser::loadDefaultJapaneseParser();
+var_dump($parser->parse('今日は天気です。'));
 # ['今日は', '天気です。']
 ```
 
 **Simplified Chinese:**
 
-```python
-import budoux
-parser = budoux.load_default_simplified_chinese_parser()
-print(parser.parse('今天是晴天。'))
+```php
+use Budoux;
+
+$parser = Budoux\Parser::loadDefaultSimplifiedChineseParser();
+var_dump($parser->parse('今天是晴天。'));
 # ['今天', '是', '晴天。']
 ```
 
 **Traditional Chinese:**
 
-```python
-import budoux
-parser = budoux.load_default_traditional_chinese_parser()
-print(parser.parse('今天是晴天。'))
+```php
+use Budoux;
+
+$parser = Budoux\Parser::loadDefaultTraditionalChineseParser();
+var_dump($parser->parse('今天是晴天。'));
 # ['今天', '是', '晴天。']
 ```
 
 **Thai:**
-```python
-import budoux
-parser = budoux.load_default_thai_parser()
-print(parser.parse('วันนี้อากาศดี'))
+```php
+use Budoux;
+
+$parser = Budoux\Parser::loadDefaultThaiParser();
+var_dump($parser->parse('วันนี้อากาศดี'));
 # ['วัน', 'นี้', 'อากาศ', 'ดี']
 ```
 
 You can also translate an HTML string to wrap phrases with non-breaking markup.
 The default parser uses zero-width space (U+200B) to separate phrases.
 
-```python
-print(parser.translate_html_string('今日は<b>とても天気</b>です。'))
+```php
+var_dump($parser->translate_html_string('今日は<b>とても天気</b>です。'));
 # <span style="word-break: keep-all; overflow-wrap: anywhere;">今日は<b>\u200bとても\u200b天気</b>です。</span>
 ```
+
+> [!CAUTION]
+> The PHP port does ***not yet*** support HTML.
 
 Please note that separators are denoted as `\u200b` in the example above for
 illustrative purposes, but the actual output is an invisible string as it's a
@@ -110,10 +114,9 @@ zero-width space.
 
 If you have a custom model, you can use it as follows.
 
-```python
-with open('/path/to/your/model.json') as f:
-  model = json.load(f)
-parser = budoux.Parser(model)
+```php
+$model = json_decode(file_get_contents('/path/to/your/model.json'), true);
+$parser = Budoux\Parser::Parser(model)
 ```
 
 A model file for BudouX is a JSON file that contains pairs of a feature and its score extracted by machine learning training.
