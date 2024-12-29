@@ -23,11 +23,14 @@ namespace Budoux;
 use function array_is_list;
 use function array_key_last;
 use function array_map;
+use function array_slice;
 use function array_sum;
+use function count;
 use function file_get_contents;
+use function implode;
 use function json_decode;
+use function mb_str_split;
 use function mb_strlen;
-use function mb_substr;
 use function strlen;
 
 /**
@@ -129,53 +132,55 @@ class Parser
             return [];
         }
 
+        $sentence = mb_str_split($sentence, 1, 'UTF-8');
+
         $result = [
-            mb_substr($sentence, 0, 1, 'UTF-8'),
+            $sentence[0],
         ];
 
         $totalScore = array_sum(array_map(array_sum(...), $this->model));
-        $length = mb_strlen($sentence, 'UTF-8');
+        $length = count($sentence);
 
         for ($i = 1; $i < $length; $i++) {
             $score = -$totalScore;
             if ($i - 2 > 0) {
-                $score += 2 * $this->getScore("UW1", mb_substr($sentence, $i - 3, 1, 'UTF-8'));
+                $score += 2 * $this->getScore("UW1", $sentence[$i - 3]);
             }
             if ($i - 1 > 0) {
-                $score += 2 * $this->getScore("UW2", mb_substr($sentence, $i - 2, 1, 'UTF-8'));
+                $score += 2 * $this->getScore("UW2", $sentence[$i - 2]);
             }
-            $score += 2 * $this->getScore("UW3", mb_substr($sentence, $i - 1, 1, 'UTF-8'));
-            $score += 2 * $this->getScore("UW4", mb_substr($sentence, $i, 1, 'UTF-8'));
+            $score += 2 * $this->getScore("UW3", $sentence[$i - 1]);
+            $score += 2 * $this->getScore("UW4", $sentence[$i]);
             if ($i + 1 < $length) {
-                $score += 2 * $this->getScore("UW5", mb_substr($sentence, $i + 1, 1, 'UTF-8'));
+                $score += 2 * $this->getScore("UW5", $sentence[$i + 1]);
             }
             if ($i + 2 < $length) {
-                $score += 2 * $this->getScore("UW6", mb_substr($sentence, $i + 2, 1, 'UTF-8'));
+                $score += 2 * $this->getScore("UW6", $sentence[$i + 2]);
             }
             if ($i > 1) {
-                $score += 2 * $this->getScore("BW1", mb_substr($sentence, $i - 2, 2, 'UTF-8'));
+                $score += 2 * $this->getScore("BW1", implode(array_slice($sentence, $i - 2, 2)));
             }
-            $score += 2 * $this->getScore("BW2", mb_substr($sentence, $i - 1, 2, 'UTF-8'));
+            $score += 2 * $this->getScore("BW2", implode(array_slice($sentence, $i - 1, 2)));
             if ($i + 1 < $length) {
-                $score += 2 * $this->getScore("BW3", mb_substr($sentence, $i, 2, 'UTF-8'));
+                $score += 2 * $this->getScore("BW3", implode(array_slice($sentence, $i, 2)));
             }
             if ($i - 2 > 0) {
-                $score += 2 * $this->getScore("TW1", mb_substr($sentence, $i - 3, 3, 'UTF-8'));
+                $score += 2 * $this->getScore("TW1", implode(array_slice($sentence, $i - 3, 3)));
             }
             if ($i - 1 > 0) {
-                $score += 2 * $this->getScore("TW2", mb_substr($sentence, $i - 2, 3, 'UTF-8'));
+                $score += 2 * $this->getScore("TW2", implode(array_slice($sentence, $i - 2, 3)));
             }
             if ($i + 1 < $length) {
-                $score += 2 * $this->getScore("TW3", mb_substr($sentence, $i - 1, 3, 'UTF-8'));
+                $score += 2 * $this->getScore("TW3", implode(array_slice($sentence, $i - 1, 3)));
             }
             if ($i + 2 < $length) {
-                $score += 2 * $this->getScore("TW4", mb_substr($sentence, $i, 3, 'UTF-8'));
+                $score += 2 * $this->getScore("TW4", implode(array_slice($sentence, $i, 3)));
             }
             if ($score > 0) {
                 $result[] = '';
             }
 
-            $result[array_key_last($result)] .= mb_substr($sentence, $i, 1, 'UTF-8');
+            $result[array_key_last($result)] .= $sentence[$i];
         }
 
         assert(array_is_list($result));
