@@ -34,7 +34,7 @@ class ParserTest extends TestCase
             ],
         ];
 
-        $parser = new Parser($model);
+        $parser = new Parser\File($model);
 
         $this->assertSame(['xyz', 'abc'], $parser->parse('xyzabc'));
     }

@@ -22,9 +22,7 @@ namespace Budoux;
 
 use function array_is_list;
 use function array_key_last;
-use function array_map;
 use function array_slice;
-use function array_sum;
 use function count;
 use function file_get_contents;
 use function implode;
@@ -46,17 +44,8 @@ use function strlen;
  *     $parser = Parser::loadDefaultJapaneseParser();
  *
  */
-class Parser
+abstract class Parser
 {
-    /**
-     * Constructs a BudouX parser.
-     */
-    public function __construct(
-        /** @var array<string, array<string, int>> */
-        private array $model,
-    ) {
-    }
-
     /**
      * Loads the default Japanese parser.
      */
@@ -94,9 +83,8 @@ class Parser
      *
      * @param string $modelFileName the model file path.
      * @phpstan-param non-empty-string $modelFileName
-     * @return Parser a BudouX parser.
      */
-    public static function loadByFileName(string $modelFileName): Parser
+    public static function loadByFileName(string $modelFileName): Parser\File
     {
         $content = file_get_contents($modelFileName);
         assert($content !== false);
@@ -104,7 +92,7 @@ class Parser
         /** @var array<string, array<string, int>> $model */
         $model = json_decode($content, true);
 
-        return new self($model);
+        return new Parser\File($model);
     }
 
     /**
@@ -114,10 +102,9 @@ class Parser
      * @param string $sequence the sequence to look up the score.
      * @return int the contribution score to support a phrase break.
      */
-    private function getScore(string $featureKey, string $sequence): int
-    {
-        return $this->model[$featureKey][$sequence] ?? 0;
-    }
+    protected abstract function getScore(string $featureKey, string $sequence): int;
+
+    protected abstract function getTotalScore(): int;
 
     /**
      * Parses a sentence into phrases.
@@ -138,7 +125,7 @@ class Parser
             $sentence[0],
         ];
 
-        $totalScore = array_sum(array_map(array_sum(...), $this->model));
+        $totalScore = $this->getTotalScore();
         $length = count($sentence);
 
         for ($i = 1; $i < $length; $i++) {
