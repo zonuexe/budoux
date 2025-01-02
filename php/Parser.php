@@ -51,7 +51,7 @@ abstract class Parser
      */
     public static function loadDefaultJapaneseParser(): Parser
     {
-        return self::loadByFileName(__DIR__ . '/../budoux/models/ja.json');
+        return new Parser\Japanese();
     }
 
     /**
@@ -59,7 +59,7 @@ abstract class Parser
      */
     public static function loadDefaultSimplifiedChineseParser(): Parser
     {
-        return self::loadByFileName(__DIR__ . '/../budoux/models/zh-hans.json');
+        return new Parser\SimplifiedChinese();
     }
 
     /**
@@ -67,7 +67,7 @@ abstract class Parser
      */
     public static function loadDefaultTraditionalChineseParser(): Parser
     {
-        return self::loadByFileName(__DIR__ . '/../budoux/models/zh-hant.json');
+        return new Parser\TraditionalChinese();
     }
 
     /**
@@ -75,7 +75,7 @@ abstract class Parser
      */
     public static function loadDefaultThaiParser(): Parser
     {
-        return self::loadByFileName(__DIR__ . '/../budoux/models/th.json');
+        return new Parser\Thai();
     }
 
     /**
